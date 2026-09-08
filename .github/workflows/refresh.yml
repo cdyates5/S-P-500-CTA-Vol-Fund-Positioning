@@ -1,0 +1,51 @@
+name: Refresh dashboards
+
+on:
+  schedule:
+    # Friday 23:00 UTC — ~2-3h after the US cash close (16:00 ET) in both EDT and EST,
+    # leaving time for Yahoo/FRED to post Friday's end-of-day bar before the run fetches it.
+    # NB: GitHub cron is UTC and does not observe daylight saving, so the gap to the close
+    # shifts between 3h (summer/EDT) and 2h (winter/EST) across the year — always post-close.
+    - cron: '0 23 * * 5'
+  workflow_dispatch: {}        # allow manual "Run workflow" from the Actions tab
+
+# permissions required to publish to GitHub Pages from the workflow
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# never run two deploys at once; let an in-progress deploy finish
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build dashboards (fetch fresh data, regenerate HTML)
+        run: python build.py
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
