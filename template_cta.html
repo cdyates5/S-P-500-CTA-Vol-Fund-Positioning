@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>S&P 500 · CTA Positioning Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#ffffff; --bg2:#f3f5f9; --panel:#ffffff; --panel2:#fafbfd; --ridge:#e4e9f0;
+    --line:#e3e8ef; --line2:#eef1f6;
+    --ink:#101826; --mut:#5b6675; --dim:#8893a3; --faint:#aeb7c4;
+    --acc:#ea580c; --acc2:#c2410c; --acc-soft:rgba(234,88,12,.10);
+    --spx:#2a3b52;
+    --up2:#15803d; --up1:#3aa564; --flat:#64748b; --dn1:#dd6b66; --dn2:#dc2626;
+    --pos:#15803d; --neg:#dc2626;
+    --mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --disp:'Space Grotesk',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:
+      radial-gradient(1100px 640px at 82% -10%, rgba(234,88,12,.05), transparent 60%),
+      radial-gradient(900px 600px at -5% 0%, rgba(40,90,160,.04), transparent 55%),
+      var(--bg);
+    color:var(--ink); font-family:var(--disp);
+    font-feature-settings:"tnum" 1, "ss01" 1;
+    -webkit-font-smoothing:antialiased; line-height:1.45;
+    padding:22px clamp(14px,3vw,34px) 60px;
+  }
+  .wrap{max-width:1500px;margin:0 auto}
+  .mono{font-family:var(--mono)}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  /* ---------- header ---------- */
+  .head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;
+    padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap}
+  .brand{display:flex;flex-direction:column;gap:7px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.26em;text-transform:uppercase;
+    color:var(--acc);display:flex;align-items:center;gap:9px}
+  .eyebrow::before{content:"";width:22px;height:2px;background:linear-gradient(90deg,var(--acc),transparent)}
+  h1{font-size:clamp(22px,3.4vw,33px);font-weight:700;letter-spacing:-.01em;line-height:1.02}
+  h1 .thin{color:var(--mut);font-weight:400}
+  .sub{font-size:13px;color:var(--mut);max-width:560px;margin-top:3px}
+  .asof{text-align:right;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+  .asof .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+  .asof .val{font-family:var(--mono);font-size:15px;color:var(--ink);font-weight:500}
+  .asof .src{font-size:11px;color:var(--faint)}
+
+  /* ---------- KPI strip ---------- */
+  .kpis{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr;gap:11px;margin-bottom:18px}
+  .kpi{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;
+    box-shadow:0 1px 2.5px rgba(16,24,38,.05)}
+  .kpi .k-lab{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:9px}
+  .kpi .k-val{font-family:var(--mono);font-size:27px;font-weight:600;letter-spacing:-.01em;line-height:1}
+  .kpi .k-sub{font-size:11.5px;color:var(--mut);margin-top:7px}
+  .kpi.hero{grid-column:span 1}
+  .pos{color:var(--pos)} .neg{color:var(--neg)} .neu{color:var(--ink)}
+
+  /* gauge */
+  .gauge{margin-top:11px}
+  .g-track{position:relative;height:9px;border-radius:6px;
+    background:linear-gradient(90deg,#e7a3a3 0%, #e9edf2 40%, #e9edf2 60%, #8fcfa8 100%);
+    box-shadow:inset 0 0 0 1px rgba(16,24,38,.07)}
+  .g-zero{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:rgba(16,24,38,.22)}
+  .g-mark{position:absolute;top:50%;width:13px;height:13px;border-radius:50%;
+    transform:translate(-50%,-50%);background:var(--acc);
+    box-shadow:0 0 0 2px var(--bg),0 0 10px 1px rgba(255,122,24,.7);transition:left .5s cubic-bezier(.2,.7,.2,1)}
+  .g-mean{position:absolute;top:-3px;bottom:-3px;width:1px;background:rgba(194,65,12,.5)}
+  .g-ends{display:flex;justify-content:space-between;margin-top:6px;
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;
+    padding:4px 10px;border-radius:20px;border:1px solid var(--ridge);background:var(--bg2);font-weight:500}
+  .pill .dot{width:7px;height:7px;border-radius:50%}
+
+  /* ---------- main grid ---------- */
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;margin-bottom:14px}
+  .panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:14px;padding:16px 18px;box-shadow:0 1px 3px rgba(16,24,38,.05)}
+  .p-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+  .p-title{font-size:15px;font-weight:600;letter-spacing:-.005em;display:flex;align-items:center;gap:9px}
+  .p-title .tick{width:3px;height:15px;border-radius:2px;background:var(--acc)}
+  .p-note{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+
+  .ctrls{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .seg{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:2px}
+  .seg button{font-family:var(--mono);font-size:11px;color:var(--mut);background:none;border:none;
+    padding:5px 11px;border-radius:7px;cursor:pointer;letter-spacing:.04em;transition:.15s}
+  .seg button:hover{color:var(--ink)}
+  .seg button.on{background:var(--acc-soft);color:var(--acc2);box-shadow:inset 0 0 0 1px rgba(255,122,24,.3)}
+  .toggle{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--mut);cursor:pointer;user-select:none}
+  .toggle .sw{width:32px;height:18px;border-radius:11px;background:var(--ridge);position:relative;transition:.2s}
+  .toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#7d8aa0;transition:.2s}
+  .toggle.on .sw{background:rgba(42,59,82,.28)}
+  .toggle.on .sw::after{left:16px;background:var(--spx)}
+
+  .chart-box{position:relative;width:100%}
+  #mainChart{height:380px}
+  #projChart{height:300px}
+
+  /* right rail */
+  .rail{display:flex;flex-direction:column;gap:14px}
+  .lvl{display:flex;flex-direction:column;gap:9px}
+  .lvl-row{display:flex;justify-content:space-between;align-items:center;padding:9px 11px;border-radius:9px;
+    background:var(--bg2);border:1px solid var(--line2)}
+  .lvl-row .l-name{font-size:12px;color:var(--mut);display:flex;align-items:center;gap:8px}
+  .lvl-row .l-name .bar{width:3px;height:22px;border-radius:2px}
+  .lvl-row .l-val{font-family:var(--mono);font-size:15px;font-weight:600}
+  .lvl-row .l-dist{font-family:var(--mono);font-size:10.5px;margin-left:8px}
+  .l-cap{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.04em;margin-top:2px}
+
+  .slider{margin-bottom:13px}
+  .slider:last-child{margin-bottom:4px}
+  .sl-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+  .sl-top .sl-name{font-family:var(--mono);font-size:11.5px;color:var(--ink);letter-spacing:.03em}
+  .sl-top .sl-name span{color:var(--dim);font-size:10px}
+  .sl-top .sl-w{font-family:var(--mono);font-size:12px;color:var(--acc2);font-weight:600}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:3px;
+    background:var(--ridge);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--acc);box-shadow:0 0 0 3px var(--bg),0 1px 4px rgba(16,24,38,.28);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:var(--acc);
+    box-shadow:0 0 0 3px var(--bg);cursor:pointer}
+  .cap-in{display:flex;align-items:center;gap:9px;margin-top:4px}
+  .cap-in label{font-family:var(--mono);font-size:11px;color:var(--mut);flex:1}
+  .cap-in input{width:74px;font-family:var(--mono);font-size:13px;color:var(--ink);text-align:right;
+    background:var(--bg2);border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+  .reset{font-family:var(--mono);font-size:10.5px;color:var(--dim);background:none;border:none;cursor:pointer;
+    text-decoration:underline;text-underline-offset:2px;padding:0}
+  .reset:hover{color:var(--acc2)}
+
+  /* projection */
+  .proj-grid{display:grid;grid-template-columns:1fr 300px;gap:14px;margin-bottom:14px}
+  .scen-tbl{display:flex;flex-direction:column;gap:7px}
+  .scen-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:11px;
+    padding:10px 12px;border-radius:9px;background:var(--bg2);border:1px solid var(--line2)}
+  .scen-row .s-tag{display:flex;align-items:center;gap:8px}
+  .scen-row .s-dot{width:9px;height:9px;border-radius:2px}
+  .scen-row .s-name{font-size:12.5px;font-weight:500}
+  .scen-row .s-px{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .scen-row .s-flow{font-family:var(--mono);font-size:15px;font-weight:600;text-align:right;white-space:nowrap}
+  .scen-row .s-flow small{font-size:10px;color:var(--dim);font-weight:400;display:block;margin-top:1px}
+
+  /* horizon breakdown */
+  .horizons{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .hz{background:var(--bg2);border:1px solid var(--line2);border-radius:11px;padding:13px 14px}
+  .hz-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:11px}
+  .hz-name{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink)}
+  .hz-name span{color:var(--dim);font-size:10px;font-weight:400;margin-left:5px}
+  .hz-z{font-family:var(--mono);font-size:11px;color:var(--mut)}
+  .hz-bar{position:relative;height:7px;border-radius:4px;background:var(--ridge);margin:6px 0 11px}
+  .hz-bar .mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:rgba(16,24,38,.16)}
+  .hz-bar .fill{position:absolute;top:0;bottom:0;border-radius:4px}
+  .hz-meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+  .hz-meta b{color:var(--mut);font-weight:500}
+
+  /* footer */
+  .foot{margin-top:22px;padding-top:18px;border-top:1px solid var(--line);
+    display:grid;grid-template-columns:1fr 320px;gap:24px}
+  .method h4{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-bottom:9px}
+  .method p{font-size:11.5px;color:var(--dim);line-height:1.65;margin-bottom:7px}
+  .method code{font-family:var(--mono);color:var(--acc2);font-size:11px;background:var(--acc-soft);padding:1px 5px;border-radius:4px}
+  .disc{font-size:10.5px;color:var(--faint);line-height:1.6}
+  .disc b{color:var(--dim)}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--mut);margin-top:9px}
+  .legend i{display:inline-flex;align-items:center;gap:6px}
+  .legend i b{width:12px;height:3px;border-radius:2px;display:inline-block}
+
+  @media(max-width:1080px){
+    .kpis{grid-template-columns:1fr 1fr 1fr}
+    .grid{grid-template-columns:1fr}
+    .proj-grid{grid-template-columns:1fr}
+    .foot{grid-template-columns:1fr}
+    .horizons{grid-template-columns:1fr 1fr}
+  }
+  @media(max-width:560px){
+    .kpis{grid-template-columns:1fr 1fr}
+    .horizons{grid-template-columns:1fr}
+    h1{font-size:23px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header class="head">
+    <div class="brand">
+      <div class="eyebrow">Systematic Flow Monitor</div>
+      <h1>S&amp;P 500 <span class="thin">· CTA Positioning</span></h1>
+      <div class="sub">Trend-following replication of systematic CTA equity exposure, in the spirit of Tier1 Alpha's implied-positioning model. Re-weight the trend horizons and watch positioning, trigger levels, and 1-month conditional flows update live.</div>
+    </div>
+    <div class="asof">
+      <span class="lab">As of</span>
+      <span class="val" id="asof">—</span>
+      <span class="src" id="src">—</span>
+    </div>
+  </header>
+
+  <!-- KPI STRIP -->
+  <section class="kpis">
+    <div class="kpi hero">
+      <div class="k-lab">Net Equity Exposure</div>
+      <div class="k-val" id="kNet">—</div>
+      <div class="gauge">
+        <div class="g-track">
+          <div class="g-zero"></div>
+          <div class="g-mean" id="gMean"></div>
+          <div class="g-mark" id="gMark"></div>
+        </div>
+        <div class="g-ends"><span>Max Short</span><span>Neutral</span><span>Max Long</span></div>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="k-lab">Regime</div>
+      <div class="k-val" id="kReg" style="font-size:20px;margin-top:4px">—</div>
+      <div class="k-sub" id="kRegSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="k-lab">Notional</div>
+      <div class="k-val num" id="kBn">—</div>
+      <div class="k-sub">on <span id="kCap" class="num">—</span>bn capacity</div>
+    </div>
+    <div class="kpi">
+      <div class="k-lab">Percentile</div>
+      <div class="k-val num" id="kPct">—</div>
+      <div class="k-sub" id="kPctSub">10-year range</div>
+    </div>
+    <div class="kpi">
+      <div class="k-lab">Δ vs 1m · 1w</div>
+      <div class="k-val num" id="kChg" style="font-size:20px;margin-top:4px">—</div>
+      <div class="k-sub">Ann. vol <span id="kVol" class="num">—</span>%</div>
+    </div>
+  </section>
+
+  <!-- MAIN CHART + RAIL -->
+  <section class="grid">
+    <div class="panel">
+      <div class="p-head">
+        <div class="p-title"><span class="tick"></span>Implied CTA Positioning</div>
+        <div class="ctrls">
+          <label class="toggle on" id="spxToggle"><span class="sw"></span>SPX overlay</label>
+          <div class="seg" id="rangeSeg">
+            <button data-r="252">1Y</button>
+            <button data-r="504">2Y</button>
+            <button data-r="1260">5Y</button>
+            <button data-r="0" class="on">Max</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-box"><canvas id="mainChart"></canvas></div>
+      <div class="legend">
+        <i><b style="background:var(--acc)"></b>Net CTA exposure (% of max)</i>
+        <i><b style="background:var(--spx)"></b>S&amp;P 500</i>
+        <i><b style="background:var(--acc2);opacity:.6"></b>Long-run mean</i>
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="panel">
+        <div class="p-head"><div class="p-title"><span class="tick"></span>Trigger Levels</div></div>
+        <div class="l-cap">Index levels where the model's trend flips · live with weights</div>
+        <div class="lvl" id="lvlBox" style="margin-top:11px"></div>
+      </div>
+      <div class="panel">
+        <div class="p-head">
+          <div class="p-title"><span class="tick"></span>Trend Weights</div>
+          <button class="reset" id="resetW">reset</button>
+        </div>
+        <div id="sliders" style="margin-top:12px"></div>
+        <div class="cap-in">
+          <label>Gross capacity ($bn)</label>
+          <input type="number" id="capIn" value="65" min="5" max="300" step="5">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROJECTIONS -->
+  <section class="proj-grid">
+    <div class="panel">
+      <div class="p-head">
+        <div class="p-title"><span class="tick"></span>Conditional 1-Month Projections</div>
+        <div class="p-note">net length ($bn) · scenarios sized in monthly-vol units</div>
+      </div>
+      <div class="chart-box"><canvas id="projChart"></canvas></div>
+      <div class="legend" id="projLegend"></div>
+    </div>
+    <div class="panel">
+      <div class="p-head"><div class="p-title"><span class="tick"></span>Implied Flow (next month)</div></div>
+      <div class="l-cap" style="margin-bottom:11px">Estimated buy / sell if S&amp;P closes the month at each level</div>
+      <div class="scen-tbl" id="scenTbl"></div>
+    </div>
+  </section>
+
+  <!-- HORIZON BREAKDOWN -->
+  <section class="panel" style="margin-bottom:4px">
+    <div class="p-head"><div class="p-title"><span class="tick"></span>Trend Horizon Breakdown</div>
+      <div class="p-note">standardised momentum → position per lookback</div></div>
+    <div class="horizons" id="horizons" style="margin-top:6px"></div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="foot">
+    <div class="method">
+      <h4>Methodology</h4>
+      <p>For each trend horizon (1m / 3m / 6m / 12m) the model computes standardised momentum, the log return over the lookback divided by its volatility-scaled standard deviation: <code>z = ln(P/P₋ₗ) / (σ·√L)</code>. A response function <code>tanh(k·z)</code> maps trend strength to a position in [−1, +1], so exposure scales in smoothly and saturates toward max long / short on strong trends.</p>
+      <p>The composite is the weighted blend across horizons, reported as % of max exposure and as a $bn notional on an assumed gross trend-follower capacity. Trigger levels are the index prices where each horizon's momentum crosses zero; the aggregate flip level is solved numerically. Conditional projections evolve price under five scenarios and re-run the model forward, holding volatility fixed over the horizon.</p>
+    </div>
+    <div class="disc">
+      <b>Source &amp; disclaimer.</b> S&amp;P 500 daily closes via <span id="srcFoot">—</span>. This is an independent quantitative <b>reconstruction</b> built to resemble Tier1 Alpha's framework — it is not their model and will differ from any vendor's published series in lookbacks, weights, volatility treatment, and the precise universe of instruments CTAs trade. Capacity, scenario sizing, and weights are user-set assumptions. For research and educational use only; not investment advice.
+    </div>
+  </footer>
+
+</div>
+
+<script>
+const DATA = __DATA__;
+const LB = ['1m','3m','6m','12m'];
+const LBL = {'1m':'1-month','3m':'3-month','6m':'6-month','12m':'12-month'};
+const C = {
+  acc:'#ea580c', acc2:'#c2410c', spx:'#2a3b52',
+  up2:'#15803d', up1:'#3aa564', flat:'#64748b', dn1:'#dd6b66', dn2:'#dc2626',
+  pos:'#15803d', neg:'#dc2626', grid:'rgba(16,24,38,.14)', gridmut:'rgba(16,24,38,.055)', txt:'#5b6675'
+};
+const SCEN = [
+  ['Up Big', C.up2], ['Up Small', C.up1], ['Flat', C.flat], ['Down Small', C.dn1], ['Down Big', C.dn2]
+];
+let weights = Object.assign({}, DATA.meta.default_weights);
+let capacity = DATA.meta.capacity_bn;
+const baseCap = DATA.meta.capacity_bn;
+let showSPX = true;
+let rangeN = 0; // 0 = max
+
+const $ = id => document.getElementById(id);
+const fmtSign = (x,d=1)=> (x>=0?'+':'') + x.toFixed(d);
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const ordinal=n=>{const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
+
+function normW(){
+  let s=0; LB.forEach(k=>s+=weights[k]); if(s<=0) s=1;
+  const o={}; LB.forEach(k=>o[k]=weights[k]/s); return o;
+}
+// full composite series (-1..1) aligned to DATA.series.dates
+function composite(){
+  const w=normW(), pos=DATA.series.pos, n=DATA.series.dates.length, out=new Array(n);
+  for(let i=0;i<n;i++){ let s=0; for(const k of LB) s+=w[k]*pos[k][i]; out[i]=s; }
+  return out;
+}
+function curNet(){ const w=normW(); let s=0; for(const k of LB) s+=w[k]*DATA.snapshot.per_horizon[k]; return s; }
+// composite over the trailing 10-year window (percentile rank), re-blended live at current weights
+function composite10y(){
+  const w=normW(), pos=DATA.series.pctl, n=pos['1m'].length, out=new Array(n);
+  for(let i=0;i<n;i++){ let s=0; for(const k of LB) s+=w[k]*pos[k][i]; out[i]=s; }
+  return out;
+}
+function regime(x){
+  if(x>=0.85)return['Max Long',C.pos]; if(x>=0.40)return['Long',C.pos];
+  if(x>=0.15)return['Modestly Long','#3aa564']; if(x>-0.15)return['Neutral',C.spx];
+  if(x>-0.40)return['Modestly Short','#dd6b66']; if(x>-0.85)return['Short',C.neg];
+  return['Max Short',C.neg];
+}
+// net exposure as function of hypothetical index price today, current weights
+function netAtPrice(X){
+  const w=normW(), vd=DATA.snapshot.cur_vol_d, K=DATA.meta.k; let t=0;
+  for(const k of LB){
+    const plag=DATA.triggers.horizon[k], L=DATA.meta.lookbacks[k];
+    const z=(Math.log(X)-Math.log(plag))/(vd*Math.sqrt(L));
+    t+=w[k]*Math.tanh(K*z);
+  } return t;
+}
+function solveLevel(target){
+  let lo=DATA.snapshot.spx*0.45, hi=DATA.snapshot.spx*1.9;
+  if((netAtPrice(lo)-target)*(netAtPrice(hi)-target)>0) return null;
+  for(let i=0;i<70;i++){ const m=(lo+hi)/2;
+    if((netAtPrice(lo)-target)*(netAtPrice(m)-target)<=0) hi=m; else lo=m; }
+  return (lo+hi)/2;
+}
+
+/* ---------------- charts ---------------- */
+const hline = {
+  id:'hline',
+  afterDraw(chart, args, opts){
+    const lines = chart.options.plugins.hline?.lines || [];
+    const {ctx, chartArea:{left,right}, scales} = chart;
+    lines.forEach(L=>{
+      const sc=scales[L.axis]; if(!sc) return;
+      const y=sc.getPixelForValue(L.v);
+      ctx.save(); ctx.beginPath(); ctx.setLineDash(L.dash||[4,4]);
+      ctx.strokeStyle=L.color; ctx.lineWidth=L.width||1;
+      ctx.moveTo(left,y); ctx.lineTo(right,y); ctx.stroke();
+      if(L.label){ ctx.setLineDash([]); ctx.fillStyle=L.color; ctx.font='10px IBM Plex Mono';
+        ctx.textAlign='left'; ctx.fillText(L.label, left+6, y-4); }
+      ctx.restore();
+    });
+  }
+};
+Chart.register(hline);
+Chart.defaults.font.family="'IBM Plex Mono', monospace";
+Chart.defaults.color = C.txt;
+
+let mainChart, projChart;
+
+function sliceData(){
+  const n=DATA.series.dates.length;
+  const start = rangeN>0 ? Math.max(0, n-rangeN) : 0;
+  return {start, n};
+}
+
+function buildMain(){
+  const comp=composite();
+  const {start} = sliceData();
+  const dates=DATA.series.dates.slice(start);
+  const net=comp.slice(start).map(v=>v*100);
+  const spx=DATA.series.spx.slice(start);
+  const mean=DATA.snapshot.hist_mean*100;
+
+  const grad = (cx)=>{ const g=cx.createLinearGradient(0,0,0,380);
+    g.addColorStop(0,'rgba(234,88,12,.26)'); g.addColorStop(.55,'rgba(234,88,12,.06)');
+    g.addColorStop(1,'rgba(234,88,12,0)'); return g; };
+
+  const ds=[{
+    label:'Net CTA exposure', data:net, yAxisID:'yNet', borderColor:C.acc,
+    borderWidth:1.7, pointRadius:0, tension:.12, fill:true,
+    backgroundColor:(c)=> grad(c.chart.ctx), order:2
+  }];
+  if(showSPX){
+    ds.push({ label:'S&P 500', data:spx, yAxisID:'ySpx', borderColor:C.spx,
+      borderWidth:1.1, pointRadius:0, tension:.05, fill:false, order:1, borderDash:[] });
+  }
+
+  const cfg={
+    type:'line',
+    data:{labels:dates, datasets:ds},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{duration:420},
+      interaction:{mode:'index',intersect:false},
+      layout:{padding:{top:6}},
+      scales:{
+        x:{grid:{color:C.gridmut,drawTicks:false}, border:{color:C.grid},
+           ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:9,
+             callback(v){const d=this.getLabelForValue(v); return d? d.slice(0,7):'';}, font:{size:10},color:C.txt}},
+        yNet:{position:'left', min:-105, max:105, grid:{color:C.gridmut},
+           border:{color:C.grid}, ticks:{callback:v=>v+'%', stepSize:50, font:{size:10}, color:C.acc2},
+           title:{display:true,text:'NET EXPOSURE',color:C.txt,font:{size:9,family:"'IBM Plex Mono'"}}},
+        ySpx:{position:'right', grid:{drawOnChartArea:false}, border:{color:C.grid},
+           ticks:{callback:v=>(v>=1000? (v/1000).toFixed(1)+'k': v), font:{size:10}, color:C.spx},
+           display:showSPX, title:{display:showSPX,text:'S&P 500',color:C.txt,font:{size:9,family:"'IBM Plex Mono'"}}}
+      },
+      plugins:{
+        legend:{display:false},
+        hline:{lines:[
+          {v:0,axis:'yNet',color:'rgba(16,24,38,.30)',dash:[2,3],width:1},
+          {v:mean,axis:'yNet',color:'rgba(194,65,12,.55)',dash:[5,4],width:1,label:'mean '+fmtSign(mean,0)+'%'}
+        ]},
+        tooltip:{
+          backgroundColor:'#ffffff', borderColor:'rgba(16,24,38,.14)', borderWidth:1, padding:11,
+          titleColor:'#101826', bodyColor:'#2a3b52', titleFont:{size:11}, bodyFont:{size:12},
+          callbacks:{
+            label(ctx){
+              if(ctx.dataset.yAxisID==='yNet') return '  Net exposure  '+fmtSign(ctx.parsed.y,1)+'%';
+              return '  S&P 500  '+Math.round(ctx.parsed.y).toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  };
+  if(mainChart){ mainChart.data=cfg.data; mainChart.options=cfg.options; mainChart.update(); }
+  else mainChart=new Chart($('mainChart'), cfg);
+}
+
+function buildProj(){
+  const capScale = capacity/baseCap;
+  const w=normW();
+  const hist=DATA.projection.hist;
+  const histDates=hist.dates, projDates=DATA.projection.dates;
+  const labels=histDates.concat(projDates);
+  const HL=histDates.length;
+  const histVals=hist.net_bn.map(v=>v*capScale);
+
+  const datasets=[{
+    label:'Actual', data:histVals.concat(new Array(projDates.length).fill(null)),
+    borderColor:'rgba(71,85,105,.75)', borderWidth:1.4, pointRadius:0, tension:.12,
+    fill:false, order:10
+  }];
+  const junction = histVals[histVals.length-1];
+  SCEN.forEach(([name,col])=>{
+    const perh=DATA.projection.scenarios[name].perh;
+    const fwd=[]; for(let i=0;i<projDates.length;i++){ let s=0; for(const k of LB) s+=w[k]*perh[k][i]; fwd.push(s*capacity); }
+    const arr=new Array(HL-1).fill(null); arr.push(junction); arr.push(...fwd);
+    datasets.push({ label:name, data:arr, borderColor:col, borderWidth:1.8, pointRadius:0,
+      tension:.15, fill:false, borderDash:[], order:5 });
+  });
+
+  const cfg={
+    type:'line', data:{labels, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{duration:420},
+      interaction:{mode:'index',intersect:false},
+      scales:{
+        x:{grid:{color:C.gridmut,drawTicks:false}, border:{color:C.grid},
+           ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:7, font:{size:10},
+             callback(v){const d=this.getLabelForValue(v); return d? d.slice(5):'';}, color:C.txt}},
+        y:{grid:{color:C.gridmut}, border:{color:C.grid},
+           ticks:{callback:v=>fmtSign(v,0), font:{size:10}, color:C.txt},
+           title:{display:true,text:'NET LENGTH ($bn)',color:C.txt,font:{size:9}}}
+      },
+      plugins:{
+        legend:{display:false},
+        hline:{lines:[{v:0,axis:'y',color:'rgba(16,24,38,.26)',dash:[2,3],width:1}]},
+        tooltip:{ backgroundColor:'#ffffff', borderColor:'rgba(16,24,38,.14)', borderWidth:1, padding:10,
+          titleColor:'#101826', bodyColor:'#2a3b52', titleFont:{size:11}, bodyFont:{size:11.5},
+          filter:i=>i.parsed.y!==null,
+          callbacks:{ label:c=> '  '+c.dataset.label+'  '+fmtSign(c.parsed.y,1)+'bn' } }
+      }
+    }
+  };
+  if(projChart){ projChart.data=cfg.data; projChart.options=cfg.options; projChart.update(); }
+  else projChart=new Chart($('projChart'), cfg);
+
+  // legend
+  $('projLegend').innerHTML = '<i><b style="background:rgba(71,85,105,.75)"></b>Actual (40d)</i>' +
+    SCEN.map(([n,c])=>`<i><b style="background:${c}"></b>${n}</i>`).join('');
+}
+
+/* ---------------- side panels ---------------- */
+function renderKPIs(){
+  const net=curNet(), pct=net*100, w=normW();
+  const [reg,regC]=regime(net);
+  $('kNet').textContent=fmtSign(pct,1)+'%'; $('kNet').className='k-val '+(net>=0?'pos':'neg');
+  // gauge
+  $('gMark').style.left=clamp((net+1)/2*100,1,99)+'%';
+  $('gMark').style.background = net>=0? C.acc : C.neg;
+  $('gMean').style.left=clamp((DATA.snapshot.hist_mean+1)/2*100,0,100)+'%';
+  // regime
+  $('kReg').textContent=reg; $('kReg').style.color=regC;
+  $('kRegSub').textContent='trend-follower stance';
+  // notional
+  const bn=net*capacity;
+  $('kBn').textContent=fmtSign(bn,1)+'bn'; $('kBn').className='k-val num '+(bn>=0?'pos':'neg');
+  $('kCap').textContent=capacity.toFixed(0);
+  // percentile (live, over trailing 10-year window)
+  const comp10=composite10y(); let le=0; comp10.forEach(v=>{if(v<=net)le++;});
+  const p=le/comp10.length*100;
+  $('kPct').textContent=ordinal(Math.round(p));
+  $('kPctSub').textContent = (p>=80?'crowded long':p<=20?'crowded short':'mid-range')+' · 10-year';
+  // change
+  // change vs 1m / 1w, recomputed at current weights for consistency
+  const netAgo = ph => { if(!ph) return null; let s=0; for(const k of LB) s+=w[k]*ph[k]; return s; };
+  const n1m=netAgo(DATA.snapshot.ph_1m), n1w=netAgo(DATA.snapshot.ph_1w);
+  const d1m = n1m!=null ? (net-n1m)*100 : null;
+  const d1w = n1w!=null ? (net-n1w)*100 : null;
+  $('kChg').innerHTML = (d1m!=null? `<span class="${d1m>=0?'pos':'neg'}">${fmtSign(d1m,0)}</span>`:'—') +
+    ` <span style="color:var(--faint)">·</span> ` + (d1w!=null? `<span class="${d1w>=0?'pos':'neg'}">${fmtSign(d1w,0)}</span>`:'—') +
+    ` <span style="font-size:11px;color:var(--dim)">pp</span>`;
+  $('kVol').textContent=DATA.snapshot.ann_vol.toFixed(1);
+}
+
+function renderTriggers(){
+  const spx=DATA.snapshot.spx;
+  const flip=solveLevel(0.0), heavy=solveLevel(-0.50);
+  const rows=[];
+  const dist=v=> v? `<span class="l-dist ${v>spx?'pos':'neg'}">${fmtSign((v/spx-1)*100,1)}%</span>` : '';
+  if(flip) rows.push(['Flip to net seller', flip, C.dn1, 'net exposure → 0']);
+  if(heavy) rows.push(['Aggressive de-gross', heavy, C.dn2, 'net → −50%']);
+  rows.push(['200-day average', DATA.triggers.ma['200d'], '#7d8aa0', 'reference']);
+  let html='';
+  rows.forEach(([name,v,col,cap])=>{
+    html+=`<div class="lvl-row"><div class="l-name"><span class="bar" style="background:${col}"></span>
+      <div>${name}<div class="l-cap">${cap}</div></div></div>
+      <div style="text-align:right"><span class="l-val">${Math.round(v).toLocaleString()}</span>${dist(v)}</div></div>`;
+  });
+  $('lvlBox').innerHTML=html;
+}
+
+function renderSliders(){
+  const w=normW();
+  let html='';
+  LB.forEach(k=>{
+    html+=`<div class="slider">
+      <div class="sl-top"><span class="sl-name">${k.toUpperCase()} <span>trend</span></span>
+        <span class="sl-w" id="w_${k}">${Math.round(w[k]*100)}%</span></div>
+      <input type="range" id="sl_${k}" min="0" max="100" value="${Math.round(weights[k]*100)}"></div>`;
+  });
+  $('sliders').innerHTML=html;
+  LB.forEach(k=>{
+    $('sl_'+k).addEventListener('input', e=>{
+      weights[k]=+e.target.value/100; refresh();
+    });
+  });
+}
+
+function renderScen(){
+  const capScale=capacity/baseCap, w=normW();
+  const base=curNet()*capacity;
+  let html='';
+  SCEN.forEach(([name,col])=>{
+    const sc=DATA.projection.scenarios[name];
+    const perh=sc.perh, last=perh['1m'].length-1;
+    let endNet=0; for(const k of LB) endNet+=w[k]*perh[k][last];
+    const flow=endNet*capacity - base;
+    const m=sc.meta;
+    html+=`<div class="scen-row">
+      <div class="s-tag"><span class="s-dot" style="background:${col}"></span></div>
+      <div><div class="s-name">${name}</div><div class="s-px">${fmtSign(m.pct,1)}% → ${Math.round(m.price).toLocaleString()}</div></div>
+      <div class="s-flow ${flow>=0?'pos':'neg'}">${fmtSign(flow,1)}bn<small>${flow>=0?'buy':'sell'}</small></div>
+    </div>`;
+  });
+  $('scenTbl').innerHTML=html;
+}
+
+function renderHorizons(){
+  const w=normW();
+  let html='';
+  LB.forEach(k=>{
+    const p=DATA.snapshot.per_horizon[k], z=DATA.snapshot.z_horizon[k], trig=DATA.triggers.horizon[k];
+    const col = p>=0? C.pos : C.neg;
+    const widthPct=Math.abs(p)*50;
+    const leftPct = p>=0? 50 : 50-widthPct;
+    html+=`<div class="hz">
+      <div class="hz-top"><div class="hz-name">${k.toUpperCase()}<span>${LBL[k]}</span></div>
+        <div class="hz-z">z ${fmtSign(z,2)}</div></div>
+      <div class="hz-bar"><div class="mid"></div>
+        <div class="fill" style="left:${leftPct}%;width:${widthPct}%;background:${col}"></div></div>
+      <div class="hz-meta"><span><b>pos</b> <span style="color:${col}">${fmtSign(p,2)}</span></span>
+        <span><b>wt</b> ${Math.round(w[k]*100)}%</span>
+        <span><b>flip</b> ${Math.round(trig).toLocaleString()}</span></div>
+    </div>`;
+  });
+  $('horizons').innerHTML=html;
+}
+
+/* ---------------- orchestration ---------------- */
+function refresh(){
+  const w=normW();
+  LB.forEach(k=>{ const el=$('w_'+k); if(el) el.textContent=Math.round(w[k]*100)+'%'; });
+  renderKPIs(); renderTriggers(); renderScen(); renderHorizons();
+  buildMain(); buildProj();
+}
+
+function init(){
+  $('asof').textContent=DATA.meta.as_of;
+  $('src').textContent=DATA.meta.source;
+  $('srcFoot').textContent=DATA.meta.source;
+  $('kCap').textContent=capacity.toFixed(0);
+  renderSliders();
+  refresh();
+
+  // range
+  $('rangeSeg').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    [...$('rangeSeg').children].forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); rangeN=+b.dataset.r; buildMain();
+  });
+  // spx toggle
+  $('spxToggle').addEventListener('click', ()=>{
+    showSPX=!showSPX; $('spxToggle').classList.toggle('on',showSPX); buildMain();
+  });
+  // capacity
+  $('capIn').addEventListener('input', e=>{
+    const v=+e.target.value; if(v>0){ capacity=v; refresh(); }
+  });
+  // reset
+  $('resetW').addEventListener('click', ()=>{
+    weights=Object.assign({}, DATA.meta.default_weights);
+    LB.forEach(k=>{ $('sl_'+k).value=Math.round(weights[k]*100); });
+    refresh();
+  });
+}
+init();
+</script>
+</body>
+</html>
